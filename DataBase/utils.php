@@ -49,7 +49,7 @@ class DataBase {
                 $resultQuery = $sth->execute();
                 self::closeDbConnection();
                 if (!$resultQuery) return false;
-                return $sth->fetchAll(PDO::FETCH_CLASS, "coins");
+                return $sth->fetchAll(PDO::FETCH_ASSOC);
             }
 
             $sql = "SELECT * FROM $table";
@@ -57,7 +57,7 @@ class DataBase {
             $resultQuery = $sth->execute();
             self::closeDbConnection();
             if (!$resultQuery) return false;
-            return $sth->fetchAll(PDO::FETCH_CLASS, "coins");
+            return $sth->fetchAll(PDO::FETCH_ASSOC);
         }
 
         if ($id) {
@@ -66,7 +66,7 @@ class DataBase {
             $resultQuery = $sth->execute();
             self::closeDbConnection();
             if (!$resultQuery) return false;
-            return $sth->fetchAll(PDO::FETCH_CLASS, "coins");
+            return $sth->fetchAll(PDO::FETCH_ASSOC);
         }
 
         $sql = "SELECT $params FROM $table";
@@ -74,7 +74,7 @@ class DataBase {
         $resultQuery = $sth->execute();
         self::closeDbConnection();
         if (!$resultQuery) return false;
-        return $sth->fetchAll(PDO::FETCH_CLASS, "coins");
+        return $sth->fetchAll(PDO::FETCH_ASSOC);
         
 
     }
