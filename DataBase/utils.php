@@ -3,51 +3,89 @@ include_once '../configs.php';
 include_once '../model/coins.php';
 class DataBase {
 
-    protected $connection;
+    protected $db_connection = null;
+    
+    private function getDbConnection($db_name){
 
-    private function getDbConnection(){
+        if ($db_name == null) {
+            $db_name = DB_NAME;
+        }
 
-        $this->connection = new PDO("mysql:host=".HOST.";dbname=".DB_NAME, DB_USER, DB_PASS); 
-    
-        if (!$this->connection) return false;
-    
-        return $this->connection;
-    
+        if ($this->db_connection !== null) {
+            $this->db_connection -> exec("set names utf8");
+            return $this->db_connection;
+        }
+        
+        try{
+
+            $this->db_connection = new PDO("mysql:host=".DB_HOST.";dbname=".$db_name, DB_USER, DB_PASS);
+            $this->db_connection->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->db_connection -> exec("set names utf8");
+
+        } catch(PDOException $e){
+
+            logMsg("Problemas ao conectar com a base: " . $e->getMessage());
+            
+        }
+       
+        return $this->db_connection;
     }
-    
-    private function closeDbConnection(){
-        unset($this->connection);
+
+    public function close(){
+        $this->db_connection = null;
     }
 
-    public function insert($data, $table){
-        $dbconnection = self::getDbConnection();
-        $sql = self::formatSql($data, $table);
+    public function save($data, $table, $db_name = null) : bool
+    {
+        $dbconnection = $this->getDbConnection($db_name);
+        
+        $sql = $this->formatSql($data, $table);
+
         $sth = $dbconnection->prepare($sql);
+
+        $i=1;
+        foreach($data as $field) {
+            $sth->bindValue($i, $field);
+            $i++;
+        }
+
         $resultQuery = $sth->execute();
-        self::closeDbConnection();
         if(!$resultQuery) return false;
         return true;
     
     }
-    
-    public function delete($id, $table){
-        $dbconnection = self::getDbConnection();
-        $sql = "DELETE FROM $table WHERE id = $id";
+
+    public function get_limit($table , $condicao = 'processamento = 0', $db_name = null)
+    {
+        $dbconnection = $this->getDbConnection($db_name);
+        
+        $sql = "SELECT * FROM $table WHERE $condicao order by id desc limit 1";
+        // echo $sql;
         $sth = $dbconnection->prepare($sql);
         $resultQuery = $sth->execute();
-        self::closeDbConnection();
-        if(!$resultQuery) return false;
-        return true;
+        if (!$resultQuery) return false;
+        return $sth->fetchAll(PDO::FETCH_ASSOC);
+    
     }
 
-    public function get($table , $id = null, $params = null){
-        $dbconnection = self::getDbConnection();
+    public function lastInsertId($table, $db_name = null){
+        $dbconnection = $this->getDbConnection($db_name);
+        $sql = "SELECT id FROM $table order by id desc limit 1";
+        $sth = $dbconnection->prepare($sql);
+        $resultQuery = $sth->execute();
+        if (!$resultQuery) return false;
+        return $sth->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function get($table , $condicao = 'processamento = 0', $db_name = null , $params = null){
+        
+        $dbconnection = $this->getDbConnection($db_name);
         if (!$params) {
-            if ($id) {
-                $sql = "SELECT * FROM $table WHERE id = $id";
+            if ($condicao) {
+                $sql = "SELECT * FROM $table WHERE $condicao";
+                // echo $sql;
                 $sth = $dbconnection->prepare($sql);
                 $resultQuery = $sth->execute();
-                self::closeDbConnection();
                 if (!$resultQuery) return false;
                 return $sth->fetchAll(PDO::FETCH_ASSOC);
             }
@@ -55,16 +93,18 @@ class DataBase {
             $sql = "SELECT * FROM $table";
             $sth = $dbconnection->prepare($sql);
             $resultQuery = $sth->execute();
-            self::closeDbConnection();
+
             if (!$resultQuery) return false;
             return $sth->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        if ($id) {
-            $sql = "SELECT $params FROM $table WHERE id = $id";
+        if ($condicao) {
+            $sql = "SELECT $params FROM $table WHERE $condicao";
+            // echo $sql . '<br>';
+          
             $sth = $dbconnection->prepare($sql);
             $resultQuery = $sth->execute();
-            self::closeDbConnection();
+
             if (!$resultQuery) return false;
             return $sth->fetchAll(PDO::FETCH_ASSOC);
         }
@@ -72,21 +112,52 @@ class DataBase {
         $sql = "SELECT $params FROM $table";
         $sth = $dbconnection->prepare($sql);
         $resultQuery = $sth->execute();
-        self::closeDbConnection();
         if (!$resultQuery) return false;
         return $sth->fetchAll(PDO::FETCH_ASSOC);
         
 
     }
 
+    public function update($table, $set, $where, $db_name = null){
+        $dbconnection = self::getDbConnection($db_name);
+        $sql = "UPDATE $table SET $set WHERE $where";
+        logMsg($sql);
+        $sth = $dbconnection->prepare($sql);
+        $resultQuery = $sth->execute();
+        if (!$resultQuery) return false;
+        return true;
+
+    }
+
+
+
+    public function delete($table, $where, $db_name = null){
+        $dbconnection = self::getDbConnection($db_name);
+        $sql = "DELETE FROM $table WHERE $where";
+        logMsg($sql);
+        $sth = $dbconnection->prepare($sql);
+        $resultQuery = $sth->execute();
+        if (!$resultQuery) return false;
+        return true;
+
+    }
+
+    public function sql($sql , $db_name = NULL){
+        $dbconnection = self::getDbConnection($db_name);
+        $sth = $dbconnection->prepare($sql);
+        $resultQuery = $sth->execute();
+        if (!$resultQuery) return false;
+        return $sth->fetchAll(PDO::FETCH_ASSOC);
+
+    }
     
     private function formatSql($arr, $table)
     {
         $data = "";
         $columns = "";
         foreach ($arr as $assoc => $field) {
-            $columns .= "$assoc,";
-            $data .= "\"$field\",";
+            $columns .= " `$assoc`,";
+            $data .= " '$field',";
         }
     
         $columns = substr($columns, 0, strlen($columns) - 1);
@@ -96,7 +167,7 @@ class DataBase {
     
         return $sql;
     }
-    
 
 }
+
 
